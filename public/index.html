@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QuickSight Registered Embedding Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-right: 10px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      button.danger {
+        background-color: #dc3545;
+      }
+      button.danger:hover {
+        background-color: #c82333;
+      }
+      .form-section {
+        border: 1px solid #ddd;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+      }
+      .form-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+      }
+      .error {
+        color: #dc3545;
+        margin-top: 10px;
+      }
+      .success {
+        color: #28a745;
+        margin-top: 10px;
+      }
+      .loading {
+        display: none;
+        color: #007bff;
+        margin-top: 10px;
+      }
+      #dashboardFrame {
+        width: 100%;
+        height: 800px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-top: 20px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>QuickSight Registered Embedding Demo</h1>
+      <p>こちらでAmazon QuickSightのRegistered埋め込みをテストできます。</p>
+
+      <div class="form-section">
+        <h3>📊 ダッシュボード表示</h3>
+        <form id="embedForm">
+          <div class="form-group">
+            <label for="userName">ユーザー名:</label>
+            <input type="text" id="userName" name="userName" required />
+          </div>
+          <div class="form-group">
+            <label for="email">メールアドレス:</label>
+            <input type="email" id="email" name="email" required />
+          </div>
+          <button type="submit" id="embedButton">ダッシュボードを表示</button>
+          <div id="loading" class="loading">処理中...</div>
+          <div id="message"></div>
+        </form>
+      </div>
+
+      <div class="form-section">
+        <h3>🗑️ ユーザー削除</h3>
+        <form id="deleteForm">
+          <div class="form-group">
+            <label for="deleteUserName">削除するユーザー名:</label>
+            <input
+              type="text"
+              id="deleteUserName"
+              name="deleteUserName"
+              required
+            />
+          </div>
+          <button type="submit" id="deleteButton" class="danger">
+            ユーザーを削除
+          </button>
+          <div id="deleteLoading" class="loading">削除中...</div>
+          <div id="deleteMessage"></div>
+        </form>
+      </div>
+
+      <iframe id="dashboardFrame"></iframe>
+    </div>
+
+    <script>
+      // ダッシュボード表示フォーム
+      document
+        .getElementById("embedForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const userName = document.getElementById("userName").value;
+          const email = document.getElementById("email").value;
+          const button = document.getElementById("embedButton");
+          const loading = document.getElementById("loading");
+          const message = document.getElementById("message");
+          const frame = document.getElementById("dashboardFrame");
+
+          button.disabled = true;
+          loading.style.display = "block";
+          message.innerHTML = "";
+          frame.style.display = "none";
+
+          try {
+            const response = await fetch("/api/embed-url", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ userName, email }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              message.innerHTML =
+                '<div class="success">埋め込みURLを生成しました</div>';
+              frame.src = data.embedUrl;
+              console.log("url: " + data.embedUrl);
+              frame.style.display = "block";
+            } else {
+              message.innerHTML = `<div class="error">エラー: ${data.error}</div>`;
+            }
+          } catch (error) {
+            message.innerHTML = `<div class="error">通信エラー: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            loading.style.display = "none";
+          }
+        });
+
+      // ユーザー削除フォーム
+      document
+        .getElementById("deleteForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const userName = document.getElementById("deleteUserName").value;
+          const button = document.getElementById("deleteButton");
+          const loading = document.getElementById("deleteLoading");
+          const message = document.getElementById("deleteMessage");
+
+          // 削除確認
+          if (
+            !confirm(
+              `ユーザー "${userName}" を削除しますか？この操作は取り消すことができません。`
+            )
+          ) {
+            return;
+          }
+
+          button.disabled = true;
+          loading.style.display = "block";
+          message.innerHTML = "";
+
+          try {
+            const response = await fetch("/api/delete-user", {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ userName }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              message.innerHTML =
+                '<div class="success">ユーザーを削除しました</div>';
+              document.getElementById("deleteUserName").value = "";
+
+              // もし削除されたユーザーのダッシュボードが表示されている場合は非表示にする
+              const currentUserName = document.getElementById("userName").value;
+              const frame = document.getElementById("dashboardFrame");
+              if (
+                currentUserName === userName &&
+                frame.style.display === "block"
+              ) {
+                frame.style.display = "none";
+                document.getElementById("message").innerHTML =
+                  '<div class="error">削除されたユーザーのダッシュボードを非表示にしました</div>';
+              }
+            } else {
+              message.innerHTML = `<div class="error">エラー: ${data.error}</div>`;
+            }
+          } catch (error) {
+            message.innerHTML = `<div class="error">通信エラー: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            loading.style.display = "none";
+          }
+        });
+    </script>
+  </body>
+</html>
