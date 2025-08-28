@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QuickSight Anonymous Embedding Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      button {
+        background-color: #28a745;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-right: 10px;
+      }
+      button:hover {
+        background-color: #218838;
+      }
+      button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      .info-section {
+        border: 1px solid #ddd;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        background-color: #e7f3ff;
+      }
+      .info-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #0066cc;
+      }
+      .form-section {
+        border: 1px solid #ddd;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+      }
+      .form-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+      }
+      .error {
+        color: #dc3545;
+        margin-top: 10px;
+      }
+      .success {
+        color: #28a745;
+        margin-top: 10px;
+      }
+      .loading {
+        display: none;
+        color: #007bff;
+        margin-top: 10px;
+      }
+      #dashboardFrame {
+        width: 100%;
+        height: 800px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-top: 20px;
+        display: none;
+      }
+      .session-info {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #666;
+      }
+      .nav-links {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f0f0f0;
+        border-radius: 8px;
+      }
+      .nav-links a {
+        color: #007bff;
+        text-decoration: none;
+        margin: 0 15px;
+        font-weight: bold;
+      }
+      .nav-links a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>QuickSight Anonymous Embedding Demo</h1>
+      
+      <div class="nav-links">
+        <a href="/">📊 Registered Embedding</a>
+        <span style="color: #28a745; font-weight: bold;">👤 Anonymous Embedding (現在のページ)</span>
+      </div>
+
+      <div class="info-section">
+        <h3>📖 匿名埋め込みについて</h3>
+        <p>匿名埋め込みはユーザー登録なしでQuickSightダッシュボードを表示できる機能です。</p>
+        <ul>
+          <li>ユーザー名やメールアドレスの入力は不要</li>
+          <li>セッション毎にユニークなURLを生成</li>
+          <li>セッション有効期限は15分</li>
+          <li>ドメイン制限によるセキュリティ確保</li>
+        </ul>
+      </div>
+
+      <div class="form-section">
+        <h3>🚀 ダッシュボード表示</h3>
+        <p>下のボタンをクリックしてダッシュボードを表示してください。</p>
+        <button type="button" id="embedButton">匿名ダッシュボードを表示</button>
+        <div id="loading" class="loading">処理中...</div>
+        <div id="message"></div>
+        <div id="sessionInfo" class="session-info" style="display: none;"></div>
+      </div>
+
+      <iframe id="dashboardFrame"></iframe>
+    </div>
+
+    <script>
+      document
+        .getElementById("embedButton")
+        .addEventListener("click", async function () {
+          const button = document.getElementById("embedButton");
+          const loading = document.getElementById("loading");
+          const message = document.getElementById("message");
+          const frame = document.getElementById("dashboardFrame");
+          const sessionInfo = document.getElementById("sessionInfo");
+
+          button.disabled = true;
+          loading.style.display = "block";
+          message.innerHTML = "";
+          frame.style.display = "none";
+          sessionInfo.style.display = "none";
+
+          try {
+            const response = await fetch("/api/anonymous-embed-url", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({}),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              message.innerHTML =
+                '<div class="success">匿名埋め込みURLを生成しました</div>';
+              frame.src = data.embedUrl;
+              frame.style.display = "block";
+              
+              sessionInfo.innerHTML = `セッションID: ${data.sessionId}<br>URL: ${data.embedUrl.substring(0, 80)}...`;
+              sessionInfo.style.display = "block";
+              
+              console.log("Session ID:", data.sessionId);
+              console.log("URL:", data.embedUrl);
+            } else {
+              message.innerHTML = `<div class="error">エラー: ${data.error}</div>`;
+            }
+          } catch (error) {
+            message.innerHTML = `<div class="error">通信エラー: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            loading.style.display = "none";
+          }
+        });
+
+      // ページ読み込み時に自動で匿名埋め込みを表示するオプション
+      // 必要に応じて以下のコメントアウトを外してください
+      /*
+      window.addEventListener('load', function() {
+        document.getElementById("embedButton").click();
+      });
+      */
+    </script>
+  </body>
+</html>

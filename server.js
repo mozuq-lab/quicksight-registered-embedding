@@ -19,6 +19,7 @@ AWS.config.update({
 const quicksight = new AWS.QuickSight();
 
 const registeredUsers = new Set();
+const anonymousSessions = new Set();
 
 async function addDashboardPermission(userName) {
   const userArn = `arn:aws:quicksight:${process.env.AWS_REGION}:${process.env.QUICKSIGHT_ACCOUNT_ID}:user/${process.env.QUICKSIGHT_NAMESPACE}/${userName}`;
@@ -96,7 +97,7 @@ async function generateEmbedUrl(userName) {
   const params = {
     AwsAccountId: process.env.QUICKSIGHT_ACCOUNT_ID,
     UserArn: `arn:aws:quicksight:${process.env.AWS_REGION}:${process.env.QUICKSIGHT_ACCOUNT_ID}:user/${process.env.QUICKSIGHT_NAMESPACE}/${userName}`,
-    SessionLifetimeInMinutes: 600,
+    SessionLifetimeInMinutes: 15,
     ExperienceConfiguration: {
       Dashboard: {
         InitialDashboardId: process.env.QUICKSIGHT_DASHBOARD_ID
@@ -110,6 +111,43 @@ async function generateEmbedUrl(userName) {
     return result.EmbedUrl;
   } catch (error) {
     console.error('Error generating embed URL:', error);
+    throw error;
+  }
+}
+
+async function generateAnonymousEmbedUrl(sessionId) {
+  const allowedDomains = process.env.QUICKSIGHT_ALLOWED_DOMAINS ? 
+    process.env.QUICKSIGHT_ALLOWED_DOMAINS.split(',').map(domain => domain.trim()) : 
+    ['http://localhost:3000'];
+
+  const params = {
+    AwsAccountId: process.env.QUICKSIGHT_ACCOUNT_ID,
+    Namespace: process.env.QUICKSIGHT_NAMESPACE,
+    SessionLifetimeInMinutes: 15,
+    AuthorizedResourceArns: [
+      `arn:aws:quicksight:${process.env.AWS_REGION}:${process.env.QUICKSIGHT_ACCOUNT_ID}:dashboard/${process.env.QUICKSIGHT_DASHBOARD_ID}`
+    ],
+    ExperienceConfiguration: {
+      Dashboard: {
+        InitialDashboardId: process.env.QUICKSIGHT_DASHBOARD_ID
+      }
+    },
+    AllowedDomains: allowedDomains,
+    SessionTags: [
+      {
+        Key: 'sessionId',
+        Value: sessionId
+      }
+    ]
+  };
+
+  try {
+    const result = await quicksight.generateEmbedUrlForAnonymousUser(params).promise();
+    anonymousSessions.add(sessionId);
+    console.log(`Anonymous embed URL generated for session ${sessionId}:`, result.EmbedUrl);
+    return result.EmbedUrl;
+  } catch (error) {
+    console.error('Error generating anonymous embed URL:', error);
     throw error;
   }
 }
@@ -215,7 +253,20 @@ app.delete('/api/delete-user', async (req, res) => {
   }
 });
 
+app.post('/api/anonymous-embed-url', async (req, res) => {
+  try {
+    const sessionId = req.body.sessionId || `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    
+    const embedUrl = await generateAnonymousEmbedUrl(sessionId);
+    res.json({ embedUrl, sessionId });
+  } catch (error) {
+    console.error('Error generating anonymous embed URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Dashboard: http://localhost:${PORT}`);
+  console.log(`Registered embedding: http://localhost:${PORT}`);
+  console.log(`Anonymous embedding: http://localhost:${PORT}/anonymous.html`);
 });
